@@ -49,7 +49,8 @@ def generate_onequbit_circuit(theta, s):
 
     return qc
 
-def generate_threequbit_circuit(theta, s2, s2z):
+# MODIFIED FOR ZNE BY AMRIT
+def generate_threequbit_circuit(theta, s2, s2z, err_scale=1):
     """
     Generates the three-qubit VQE circuit for measurement of <Ki>
     Inputs: theta - variational parameter
@@ -63,8 +64,9 @@ def generate_threequbit_circuit(theta, s2, s2z):
 
     # Make cluster chain
     qc.h(qr)
-    qc.cz(0, 1)
-    qc.cz(1, 2)
+    for _ in range(err_scale):
+        qc.cz(0, 1)
+        qc.cz(1, 2)
     
     # Some tricks with hadamards to get the correct cluster state ``orientation''
     qc.h(0)
@@ -79,7 +81,8 @@ def generate_threequbit_circuit(theta, s2, s2z):
     # Set up measurement bases (and also CZ the last 2 qubits)
     apply_Utheta(qc, 0, theta)
     qc.h(1)
-    qc.cz(1, 2)
+    for _ in range(err_scale):
+        qc.cz(1, 2)
     apply_Utheta(qc, 1, theta)
     qc.h(2)
     
@@ -196,7 +199,8 @@ def multiple_avgX(backend, best_qubits, shots_num, job_manager, theta_ar, meas_f
 
 # Functions for calcualting <K>_i (cluster state stabilizer term)
 
-def perform_avgK(backend, best_qubits_one, best_qubits_three, shots_num, job_manager, theta, meas_filter_one = 0, meas_filter_three = 0):
+# MODIFIED FOR ZNE BY AMRIT
+def perform_avgK(backend, best_qubits_one, best_qubits_three, shots_num, job_manager, theta, err_scale=1, meas_filter_one = 0, meas_filter_three = 0):
     """
     Performs circuits and calculates cluster state stabilizer expectation <K>i for VQE (function of theta)
     Input: backend - Which backend (simulator or device) to use
@@ -233,10 +237,10 @@ def perform_avgK(backend, best_qubits_one, best_qubits_three, shots_num, job_man
     onequbitcountlist = [onequbitcounts0, onequbitcounts1, onequbitcounts2, onequbitcounts3]
     
     
-    step2circ1 = generate_threequbit_circuit(theta, 0, 0)
-    step2circ2 = generate_threequbit_circuit(theta, 0, 1)
-    step2circ3 = generate_threequbit_circuit(theta, 1, 0)
-    step2circ4 = generate_threequbit_circuit(theta, 1, 1)
+    step2circ1 = generate_threequbit_circuit(theta, 0, 0, err_scale)
+    step2circ2 = generate_threequbit_circuit(theta, 0, 1, err_scale)
+    step2circ3 = generate_threequbit_circuit(theta, 1, 0, err_scale)
+    step2circ4 = generate_threequbit_circuit(theta, 1, 1, err_scale)
     
     threequbitcircs = transpile([step2circ1, step2circ2, step2circ3, step2circ4], backend=backend, initial_layout=best_qubits_three)
     job_exp = job_manager.run(threequbitcircs, backend=backend, shots=(shots_num+10), name='VQEK-3qubit')
@@ -461,3 +465,98 @@ def fourierfit(theta_ar, n_ar, cn_ar):
     for n in n_ar:
         fhattheta_ar += cn_ar[n] * np.exp(1j * n * 2 * theta_ar)
     return fhattheta_ar
+
+# ADDED BY AMRIT FOR ZNE
+def perform_avgK_1q(backend, best_qubits_one, best_qubits_three, shots_num, job_manager, theta, err_scale=1, meas_filter_one = 0, meas_filter_three = 0):
+    """
+    Performs circuits and calculates cluster state stabilizer expectation <K>i for VQE (function of theta)
+    Input: backend - Which backend (simulator or device) to use
+           best_qubits_one - which (1) qubit to use on the backend for single qubit circuits
+           best_qubits_three - which (3) qubits to use on the backend for three qubit circuits
+           shots_num - how many shots per experiment
+           job_manager - IBMQ jobmanager
+           theta - VQE parameter.
+           meas_filter_one - One-qubit measurement error mitigation filter; by default is not applied.
+           meas_filter_three - Three-qubit measurement error mitigation filter; by default is not applied
+    Output: Kavg - Cluster state expectation value
+            Kerr - Statistical error associated with above expectation
+    """
+    
+    step1circ1 = generate_onequbit_circuit(theta, 0)
+    step1circ2 = generate_onequbit_circuit(theta, 1)
+    step3circ1 = generate_onequbit_circuit(theta, 0)
+    step3circ2 = generate_onequbit_circuit(theta, 1)
+    onequbitcircs = transpile([step1circ1, step1circ2, step3circ1, step3circ2], backend = backend, initial_layout=best_qubits_one)
+    job_exp = job_manager.run(onequbitcircs, backend=backend, shots=shots_num, name='VQEK-1qubit')
+    for i in range(len(job_exp.jobs())):
+        job_monitor(job_exp.jobs()[i])
+    print('All jobs have finished.')
+    onequbitresults = job_exp.results()
+    onequbitcounts0 = onequbitresults.get_counts(0)
+    onequbitcounts1 = onequbitresults.get_counts(1)
+    onequbitcounts2 = onequbitresults.get_counts(2)
+    onequbitcounts3 = onequbitresults.get_counts(3)
+    if meas_filter_one != 0:
+        onequbitcounts0 = meas_filter_one.apply(onequbitcounts0)
+        onequbitcounts1 = meas_filter_one.apply(onequbitcounts1)
+        onequbitcounts2 = meas_filter_one.apply(onequbitcounts2)
+        onequbitcounts3 = meas_filter_one.apply(onequbitcounts3)
+    return onequbitcountlist = [onequbitcounts0, onequbitcounts1, onequbitcounts2, onequbitcounts3]
+    
+
+def circuits_avgK_3q(theta, sf_list):
+    circ_list = []
+    for err_scale in sf_list:
+        step2circ1 = generate_threequbit_circuit(theta, 0, 0, err_scale)
+        step2circ2 = generate_threequbit_circuit(theta, 0, 1, err_scale)
+        step2circ3 = generate_threequbit_circuit(theta, 1, 0, err_scale)
+        step2circ4 = generate_threequbit_circuit(theta, 1, 1, err_scale)
+        circ_list.extend([step2circ1, step2circ2, step2circ3, step2circ4])
+    return circ_list
+
+def multiple_avgK_zne(backend, best_qubits_one, best_qubits_three, shots_num, job_manager, theta_ar, meas_filter_one = 0, meas_filter_three = 0):    
+    """
+    Performs circuits and calculates cluster state stabilizer expectation <K>i for VQE for multiple thetas
+    Input: backend - Which backend (simulator or device) to use
+           best_qubits_one - which (1) qubit to use on the backend for single qubit circuits
+           best_qubits_three - which (3) qubits to use on the backend for three qubit circuits
+           shots_num - how many shots per experiment
+           job_manager - IBMQ jobmanager
+           theta_ar - Array of VQE parameters (which will be iterated over).
+           meas_filter_one - One-qubit measurement error mitigation filter; by default is not applied.
+           meas_filter_three - Three-qubit measurement error mitigation filter; by default is not applied
+    Output: Kavg - Cluster state expectation value
+            Kerr - Statistical error associated with above expectation
+    """
+    Kavg_ar = []
+    Kerr_ar = []
+    for theta in theta_ar:
+        onequbitcountlist = 
+        Kavg, Kerr = calculate_avgK(onequbitcountlist, threequbitcountlist)
+        # perform_avgK(backend, best_qubits_one, best_qubits_three, shots_num, job_manager, theta, meas_filter_one, meas_filter_three)
+        
+        Kavg_ar.append(Kavg)
+        Kerr_ar.append(Kerr)
+    return np.array(Kavg_ar), np.array(Kerr_ar)
+
+
+'''
+    
+    threequbitcircs = transpile([step2circ1, step2circ2, step2circ3, step2circ4], backend=backend, initial_layout=best_qubits_three)
+    job_exp = job_manager.run(threequbitcircs, backend=backend, shots=(shots_num+10), name='VQEK-3qubit')
+    for i in range(len(job_exp.jobs())):
+        job_monitor(job_exp.jobs()[i])
+    print('All jobs have finished.')
+    threequbitresults = job_exp.results()
+    threequbitcounts0 = threequbitresults.get_counts(0)
+    threequbitcounts1 = threequbitresults.get_counts(1)
+    threequbitcounts2 = threequbitresults.get_counts(2)
+    threequbitcounts3 = threequbitresults.get_counts(3)
+    if meas_filter_three != 0:
+        threequbitcounts0 = meas_filter_three.apply(threequbitcounts0)
+        threequbitcounts1 = meas_filter_three.apply(threequbitcounts1)
+        threequbitcounts2 = meas_filter_three.apply(threequbitcounts2)
+        threequbitcounts3 = meas_filter_three.apply(threequbitcounts3)
+    threequbitcountlist = [threequbitcounts0, threequbitcounts1, threequbitcounts2, threequbitcounts3]
+    return calculate_avgK(onequbitcountlist, threequbitcountlist)
+'''

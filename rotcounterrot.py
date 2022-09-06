@@ -4,6 +4,7 @@ Name: Rio Weil
 Description: Functions for Running Rotation-Counterrotation SPT MBQC experiments (4-qubit rings) on IBMQ devices
 """
 
+
 import numpy as np
 from qiskit import *
 from qiskit.providers.ibmq.managed import IBMQJobManager
@@ -65,7 +66,7 @@ def shift_meas_basis(qc, beta, qubit, outcome, a, b):
 # Functions for preparing + running rotation-counterrotation circuits
 
 
-def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome):
+def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome, err_scale=1):
     """
     Generates one circuit corresponding to one measurement outcome of experiment we are trying to simulate.
     Inputs: beta - Rotation angle
@@ -81,7 +82,9 @@ def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome):
     # Creates 4-qubit chain
     qc.h(qr)
     
-    qc.cz([0, 1, 2], [1, 2, 3])
+    # MODIFIED BY AMRIT FOR ZNE
+    for _ in range(err_scale):
+        qc.cz([0, 1, 2], [1, 2, 3])
 
     qc.barrier(qr)
     # From here, apply local unitaries to convert from 4-qubit chain -> ring
@@ -110,7 +113,7 @@ def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome):
     
     return qc
 
-def generate_circuit_list(beta, a, b):
+def generate_circuit_list(beta, a, b, err_scale=1):
     """
     Generates 4 circuits to simulate the 4 experiments 
     (one circuit corresponding to each measurement outcome of experiment we are trying to simulate)
@@ -119,10 +122,13 @@ def generate_circuit_list(beta, a, b):
     Outputs: List of 4 circuits.
     """ 
     qc_list = []
+    
+    # THIS SHOULD BE IMPROVED FOR ANY NUMBER OF QUBIT MEASUREMENTS
+    # IF CHANGED, ALSO CHANGE 
     for i in range(4):
         qubit_0_outcome = (i // 2) % 2
         qubit_2_outcome = i % 2
-        qc_list.append(generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome))
+        qc_list.append(generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome, err_scale))
     return qc_list
 
 def run_circuit(qc_list, backend, best_qubits, shots_num, job_manager, meas_filter = 0):
@@ -324,4 +330,17 @@ def many_exp_point(backend, best_qubits, shots_num, job_manager, beta, acoeff_ar
         
         
     
-    
+#ADDED BY AMRIT
+
+def generate_circuits_zne(beta, acoeff_ar, bcoeff_ar, sf_list):
+    '''
+    Generates circuits for each a and b coefficients for every scale factor in sf_list
+    '''
+    circ_list = []
+    for sf in sf_list:
+        for i in range(len(acoeff_ar)):
+            a = acoeff_ar[i]
+            b = bcoeff_ar[i]
+            circ_ab = generate_circuit_list(beta, a, b, sf)
+            circ_list.extend(circ_ab)
+    return circ_list
