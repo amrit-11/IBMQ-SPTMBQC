@@ -171,15 +171,19 @@ def rcr_X_from_counts(res_list, beta, coeff_a, coeff_b, num_sf, num_reps=1):
         if repeat_circs:
             X_exp[sf_ind,coeff_ind,rep_num] = X_r
             X_err[sf_ind,coeff_ind,rep_num] = Xerr_r
-            header = pd.MultiIndex.from_product([[str(sf_ind)],[str(coeff_ind)],[str(rep_num)]],
-                                        names=['sf_ind','coeff_ind','rep_num'])
+            
         else:
             X_exp[sf_ind,coeff_ind] = X_r
             X_err[sf_ind,coeff_ind] = Xerr_r
-            header = pd.MultiIndex.from_product([[str(sf_ind)],[str(coeff_ind)]],
-                                        names=['sf_ind','coeff_ind'])
-
-        res_dflist.append(pd.DataFrame.from_dict(res_list[i],orient='index',columns=header))
+            
+        for step in range(4):
+            if repeat_circs:
+                header = pd.MultiIndex.from_product([[str(step)],[str(sf_ind)],[str(coeff_ind)],[str(rep_num)]],
+                                                    names=['step','sf_ind','coeff_ind','rep_num'])
+            else:
+                header = pd.MultiIndex.from_product([[str(step)],[str(sf_ind)],[str(coeff_ind)]],
+                                                    names=['step','sf_ind','coeff_ind'])
+            res_dflist.append(pd.DataFrame.from_dict(res_to_process[step],orient='index',columns=header))
     
     df_res = pd.concat(res_dflist, axis=1)
     return X_exp, X_err, df_res
