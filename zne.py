@@ -1,12 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
-
-from scipy import linalg
+import rotcounterrot as rcr
 from scipy.optimize import curve_fit
 import pandas as pd
-import pickle
-from datetime import datetime
-
 
 from qiskit import *
 from qiskit.providers.ibmq.managed import IBMQJobManager
@@ -140,12 +135,19 @@ def expquadlinfit(x, a, b, c):
     return np.exp(- a**2 * x**2 - b**2 * x - c**2)
 
 
-def rcr_X_from_counts(res_list, num_sf, num_coeff, repeat_circs, num_reps=1):
+def rcr_X_from_counts(res_list, beta, coeff_a, coeff_b, num_sf, num_reps=1):
+    
+    num_coeff = len(coeff_a)
+    if num_reps==1:
+        repeat_circs = False
+    elif num_reps>1:
+        repeat_circs = True
+    
     res_dflist = []
     
     if repeat_circs:
         X_exp = np.zeros((num_sf,num_coeff,num_reps))
-        X_err = np.zeros((num_sf,num_coeff,num_reps))]
+        X_err = np.zeros((num_sf,num_coeff,num_reps))
     else:
         X_exp = np.zeros((num_sf,num_coeff))
         X_err = np.zeros((num_sf,num_coeff))
@@ -158,8 +160,13 @@ def rcr_X_from_counts(res_list, num_sf, num_coeff, repeat_circs, num_reps=1):
         else:
             coeff_ind = i % num_coeff
             sf_ind = i // num_coeff
-
-        X_r, Xerr_r = rcr.post_process_results(res_list[i::4], beta, a, b)
+        
+        a = coeff_a[coeff_ind]
+        b = coeff_b[coeff_ind]
+        
+        start_ind = i+((3*num_reps)*(i//num_reps))
+        res_to_process = res_list[start_ind:start_ind+4*num_reps:num_reps]
+        X_r, Xerr_r = rcr.post_process_results(res_to_process, beta, a, b)
         
         if repeat_circs:
             X_exp[sf_ind,coeff_ind,rep_num] = X_r
@@ -176,3 +183,16 @@ def rcr_X_from_counts(res_list, num_sf, num_coeff, repeat_circs, num_reps=1):
     
     df_res = pd.concat(res_dflist, axis=1)
     return X_exp, X_err, df_res
+
+
+def extract_data(data_dict, pr=True):
+    # extract all keys from dict as global variables
+    
+    var_names = data_dict.keys()
+    
+    if pr: print("\033[1m"+"Variable names:"+"\033[0m")
+    for var in var_names:
+        globals()[var] = data_dict[var]
+        if pr: print(var)
+    
+    return var_names

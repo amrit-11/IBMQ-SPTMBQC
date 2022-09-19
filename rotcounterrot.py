@@ -86,20 +86,20 @@ def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome, err_scale=1):
     for _ in range(err_scale):
         qc.cz([0, 1, 2], [1, 2, 3])
 
-    qc.barrier(qr)
+    #qc.barrier(qr)
     # From here, apply local unitaries to convert from 4-qubit chain -> ring
     # Applies first Local unitary
     qc.sx(2)
     qc.sdg([1, 3])
-    qc.barrier(qr)
+    #qc.barrier(qr)
     # Applies second Local unitary
     qc.sx(1)
     qc.sdg([0, 2, 3])
-    qc.barrier(qr)
+    #qc.barrier(qr)
     # Applies third local unitary. After this, if we swap qubits 1 and 2 (which we will keep track of) we have a 4-ring
     qc.sx(2)
     qc.sdg([0, 1])
-    qc.barrier(qr)
+    #qc.barrier(qr)
     
     # Setup to measure qubits 0 and 2 (actually 1 after the SWAP) in the rotated/nontrivial basis
     shift_meas_basis(qc, beta, 0, qubit_0_outcome, a, b)
@@ -110,7 +110,7 @@ def generate_circuit(beta, a, b, qubit_0_outcome, qubit_2_outcome, err_scale=1):
     qc.h(3)
 
     qc.measure_all()
-    
+    #print(qc.draw())
     return qc
 
 def generate_circuit_list(beta, a, b, err_scale=1):
