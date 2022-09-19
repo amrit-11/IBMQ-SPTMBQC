@@ -185,14 +185,3 @@ def rcr_X_from_counts(res_list, beta, coeff_a, coeff_b, num_sf, num_reps=1):
     return X_exp, X_err, df_res
 
 
-def extract_data(data_dict, pr=True):
-    # extract all keys from dict as global variables
-    
-    var_names = data_dict.keys()
-    
-    if pr: print("\033[1m"+"Variable names:"+"\033[0m")
-    for var in var_names:
-        globals()[var] = data_dict[var]
-        if pr: print(var)
-    
-    return var_names
